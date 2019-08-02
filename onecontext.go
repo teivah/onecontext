@@ -1,3 +1,4 @@
+// Package onecontext provides a mechanism to merge multiple existing contexts.
 package onecontext
 
 import (
@@ -6,6 +7,7 @@ import (
 	"time"
 )
 
+// Canceled is the error returned when the CancelFunc returned by Merge is called
 type Canceled struct {
 }
 
@@ -23,6 +25,8 @@ type onecontext struct {
 	cancelCtx  context.Context
 }
 
+// Merge allows to merge multiple contexts.
+// It returns the merged context and a CancelFunc to cancel it.
 func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, context.CancelFunc) {
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	o := &onecontext{
@@ -100,7 +104,7 @@ func (o *onecontext) cancel(err error) {
 	o.done <- struct{}{}
 }
 
-func (o *onecontext) runTwoContexts(ctx1 context.Context, ctx2 context.Context) {
+func (o *onecontext) runTwoContexts(ctx1, ctx2 context.Context) {
 	go func() {
 		select {
 		case <-o.cancelCtx.Done():

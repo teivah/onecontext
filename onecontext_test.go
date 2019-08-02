@@ -2,9 +2,18 @@ package onecontext
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+type key int
+
+const (
+	foo key = iota
+	bar
+	baz
 )
 
 func eventually(ch <-chan struct{}) bool {
@@ -20,9 +29,9 @@ func eventually(ch <-chan struct{}) bool {
 }
 
 func Test_Merge_Nominal(t *testing.T) {
-	ctx1, cancel1 := context.WithCancel(context.WithValue(context.Background(), "foo", "foo"))
+	ctx1, cancel1 := context.WithCancel(context.WithValue(context.Background(), foo, "foo"))
 	defer cancel1()
-	ctx2, cancel2 := context.WithCancel(context.WithValue(context.Background(), "bar", "bar"))
+	ctx2, cancel2 := context.WithCancel(context.WithValue(context.Background(), bar, "bar"))
 
 	ctx, _ := Merge(ctx1, ctx2)
 
@@ -30,9 +39,9 @@ func Test_Merge_Nominal(t *testing.T) {
 	assert.True(t, deadline.IsZero())
 	assert.False(t, ok)
 
-	assert.Equal(t, "foo", ctx.Value("foo"))
-	assert.Equal(t, "bar", ctx.Value("bar"))
-	assert.Nil(t, ctx.Value("baz"))
+	assert.Equal(t, "foo", ctx.Value(foo))
+	assert.Equal(t, "bar", ctx.Value(bar))
+	assert.Nil(t, ctx.Value(baz))
 
 	assert.False(t, eventually(ctx.Done()))
 	assert.NoError(t, ctx.Err())
