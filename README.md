@@ -7,14 +7,14 @@
 Have you ever faced the situation where you have to merge multiple existing contexts?
 If not, then you might, eventually.
 
-For example, we can face the situation where we are building an application using a library that gives us a global context.
+For example, we can face the situation where we are building an application using a library that gives us a global context (for example `urfave/cli`).
 This context expires once the application is stopped.
 
 Meanwhile, we are exposing a gRPC service like this:
 
 ```go
-func (f *Foo) Get(ctx context.Context, _ *Bar) (*Baz, error) {
-	// ...
+func (f *Foo) Get(ctx context.Context, bar *Bar) (*Baz, error) {
+	
 }
 ```
 
@@ -24,7 +24,7 @@ Then, in the `Get` implementation, we want for example to query a database and w
 
 Ideally, we would like to provide a merged context that would expire either: 
 - When the application is stopped 
-- Or when the gRPC context expires
+- Or when the received gRPC context expires
 
 This is exactly the purpose of this library.
 
@@ -34,7 +34,7 @@ In our case, we can now merge the two contexts in a single one like this:
 ctx, cancel := onecontext.Merge(ctx1, ctx2)
 ```
 
-This call returns a merged context that we can now propagate.
+This returns a merged context that we can now propagate.
 
 # Installation
 
