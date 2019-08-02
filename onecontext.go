@@ -6,22 +6,34 @@ import (
 	"time"
 )
 
-type onecontext struct {
-	ctx      context.Context
-	ctxs     []context.Context
-	done     chan struct{}
-	err      error
-	errMutex sync.Mutex
+type Canceled struct {
 }
 
-func Merge(ctx context.Context, ctxs ...context.Context) context.Context {
+func (c *Canceled) Error() string {
+	return "canceled context"
+}
+
+type onecontext struct {
+	ctx        context.Context
+	ctxs       []context.Context
+	done       chan struct{}
+	err        error
+	errMutex   sync.Mutex
+	cancelFunc context.CancelFunc
+	cancelCtx  context.Context
+}
+
+func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, context.CancelFunc) {
+	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	o := &onecontext{
-		done: make(chan struct{}),
-		ctx:  ctx,
-		ctxs: ctxs,
+		done:       make(chan struct{}),
+		ctx:        ctx,
+		ctxs:       ctxs,
+		cancelCtx:  cancelCtx,
+		cancelFunc: cancelFunc,
 	}
 	go o.run()
-	return o
+	return o, cancelFunc
 }
 
 func (o *onecontext) Deadline() (time.Time, bool) {
@@ -69,26 +81,48 @@ func (o *onecontext) Value(key interface{}) interface{} {
 func (o *onecontext) run() {
 	once := sync.Once{}
 
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	if len(o.ctxs) == 1 {
+		o.runTwoContexts(o.ctx, o.ctxs[0])
+		return
+	}
 
-	o.runContext(o.ctx, cancelCtx, cancel, &once)
+	o.runMultipleContexts(o.ctx, &once)
 	for _, ctx := range o.ctxs {
-		o.runContext(ctx, cancelCtx, cancel, &once)
+		o.runMultipleContexts(ctx, &once)
 	}
 }
 
-func (o *onecontext) runContext(ctx, cancelCtx context.Context, cancel context.CancelFunc, once *sync.Once) {
+func (o *onecontext) cancel(err error) {
+	o.cancelFunc()
+	o.errMutex.Lock()
+	o.err = err
+	o.errMutex.Unlock()
+	o.done <- struct{}{}
+}
+
+func (o *onecontext) runTwoContexts(ctx1 context.Context, ctx2 context.Context) {
 	go func() {
 		select {
-		case <-cancelCtx.Done():
-			return
+		case <-o.cancelCtx.Done():
+			o.cancel(&Canceled{})
+		case <-ctx1.Done():
+			o.cancel(ctx1.Err())
+		case <-ctx2.Done():
+			o.cancel(ctx2.Err())
+		}
+	}()
+}
+
+func (o *onecontext) runMultipleContexts(ctx context.Context, once *sync.Once) {
+	go func() {
+		select {
+		case <-o.cancelCtx.Done():
+			once.Do(func() {
+				o.cancel(&Canceled{})
+			})
 		case <-ctx.Done():
 			once.Do(func() {
-				cancel()
-				o.errMutex.Lock()
-				o.err = ctx.Err()
-				o.errMutex.Unlock()
-				o.done <- struct{}{}
+				o.cancel(ctx.Err())
 			})
 		}
 	}()

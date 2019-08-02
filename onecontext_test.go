@@ -24,7 +24,7 @@ func Test_Merge_Nominal(t *testing.T) {
 	defer cancel1()
 	ctx2, cancel2 := context.WithCancel(context.WithValue(context.Background(), "bar", "bar"))
 
-	ctx := Merge(ctx1, ctx2)
+	ctx, _ := Merge(ctx1, ctx2)
 
 	deadline, ok := ctx.Deadline()
 	assert.True(t, deadline.IsZero())
@@ -47,7 +47,7 @@ func Test_Merge_Deadline_Context1(t *testing.T) {
 	defer cancel1()
 	ctx2 := context.Background()
 
-	ctx := Merge(ctx1, ctx2)
+	ctx, _ := Merge(ctx1, ctx2)
 
 	deadline, ok := ctx.Deadline()
 	assert.False(t, deadline.IsZero())
@@ -59,7 +59,7 @@ func Test_Merge_Deadline_Context2(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel2()
 
-	ctx := Merge(ctx1, ctx2)
+	ctx, _ := Merge(ctx1, ctx2)
 
 	deadline, ok := ctx.Deadline()
 	assert.False(t, deadline.IsZero())
@@ -80,7 +80,7 @@ func Test_Merge_Deadline_ContextN(t *testing.T) {
 		ctxs = append(ctxs, ctx)
 	}
 
-	ctx := Merge(ctx1, ctxs...)
+	ctx, _ := Merge(ctx1, ctxs...)
 
 	assert.False(t, eventually(ctx.Done()))
 	assert.NoError(t, ctx.Err())
@@ -94,9 +94,36 @@ func Test_Merge_Deadline_None(t *testing.T) {
 	ctx1 := context.Background()
 	ctx2 := context.Background()
 
-	ctx := Merge(ctx1, ctx2)
+	ctx, _ := Merge(ctx1, ctx2)
 
 	deadline, ok := ctx.Deadline()
 	assert.True(t, deadline.IsZero())
 	assert.False(t, ok)
+}
+
+func Test_Cancel_Two(t *testing.T) {
+	ctx1 := context.Background()
+	ctx2 := context.Background()
+
+	ctx, cancel := Merge(ctx1, ctx2)
+
+	cancel()
+	assert.True(t, eventually(ctx.Done()))
+	assert.Error(t, ctx.Err())
+	assert.Equal(t, "canceled context", ctx.Err().Error())
+	assert.IsType(t, &Canceled{}, ctx.Err())
+}
+
+func Test_Cancel_Multiple(t *testing.T) {
+	ctx1 := context.Background()
+	ctx2 := context.Background()
+	ctx3 := context.Background()
+
+	ctx, cancel := Merge(ctx1, ctx2, ctx3)
+
+	cancel()
+	assert.True(t, eventually(ctx.Done()))
+	assert.Error(t, ctx.Err())
+	assert.Equal(t, "canceled context", ctx.Err().Error())
+	assert.IsType(t, &Canceled{}, ctx.Err())
 }
