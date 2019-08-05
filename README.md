@@ -1,6 +1,6 @@
 # teivah/onecontext
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/teivah/bitvector)](https://goreportcard.com/report/github.com/teivah/onecontext)
+[![Go Report Card](https://goreportcard.com/badge/github.com/teivah/onecontext)](https://goreportcard.com/report/github.com/teivah/onecontext)
 
 ## Overview
 
