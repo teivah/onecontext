@@ -51,7 +51,9 @@ func (o *onecontext) Deadline() (time.Time, bool) {
 	for _, ctx := range o.ctxs {
 		deadline, ok := ctx.Deadline()
 		if ok {
-			max = deadline
+			if deadline.After(max) {
+				max = deadline
+			}
 		}
 	}
 
