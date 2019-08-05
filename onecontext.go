@@ -41,23 +41,23 @@ func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, conte
 }
 
 func (o *onecontext) Deadline() (time.Time, bool) {
-	max := time.Time{}
+	min := time.Time{}
 
 	deadline, ok := o.ctx.Deadline()
 	if ok {
-		max = deadline
+		min = deadline
 	}
 
 	for _, ctx := range o.ctxs {
 		deadline, ok := ctx.Deadline()
 		if ok {
-			if deadline.After(max) {
-				max = deadline
+			if deadline.Before(min) {
+				min = deadline
 			}
 		}
 	}
 
-	return max, !max.IsZero()
+	return min, !min.IsZero()
 }
 
 func (o *onecontext) Done() <-chan struct{} {
