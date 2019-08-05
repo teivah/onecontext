@@ -43,15 +43,13 @@ func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, conte
 func (o *onecontext) Deadline() (time.Time, bool) {
 	min := time.Time{}
 
-	deadline, ok := o.ctx.Deadline()
-	if ok {
+	if deadline, ok := o.ctx.Deadline(); ok {
 		min = deadline
 	}
 
 	for _, ctx := range o.ctxs {
-		deadline, ok := ctx.Deadline()
-		if ok {
-			if deadline.Before(min) {
+		if deadline, ok := ctx.Deadline(); ok {
+			if min.IsZero() || deadline.Before(min) {
 				min = deadline
 			}
 		}
