@@ -101,7 +101,7 @@ func (o *onecontext) cancel(err error) {
 	o.errMutex.Lock()
 	o.err = err
 	o.errMutex.Unlock()
-	o.done <- struct{}{}
+	close(o.done)
 }
 
 func (o *onecontext) runTwoContexts(ctx1, ctx2 context.Context) {
