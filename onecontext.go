@@ -10,7 +10,7 @@ import (
 )
 
 // ErrCanceled is the returned when the CancelFunc returned by Merge is called.
-var ErrCanceled = errors.New("onecontext: canceled")
+var ErrCanceled = errors.New("context canceled")
 
 // OneContext is the struct holding the context grouping logic.
 type OneContext struct {
