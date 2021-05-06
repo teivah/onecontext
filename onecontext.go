@@ -4,12 +4,13 @@ package onecontext
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"time"
 )
 
 // ErrCanceled is the returned when the CancelFunc returned by Merge is called.
-var ErrCanceled = errors.New("canceled context")
+var ErrCanceled = errors.New("onecontext: canceled")
 
 // OneContext is the struct holding the context grouping logic.
 type OneContext struct {
@@ -88,39 +89,37 @@ func (o *OneContext) run() {
 		return
 	}
 
-	once := sync.Once{}
-	o.runMultipleContexts(o.ctx, &once)
-	for _, ctx := range o.ctxs {
-		o.runMultipleContexts(ctx, &once)
-	}
+	o.runMultipleContexts()
 }
 
 func (o *OneContext) runTwoContexts(ctx1, ctx2 context.Context) {
-	go func() {
-		select {
-		case <-o.cancelCtx.Done():
-			o.cancel(ErrCanceled)
-		case <-ctx1.Done():
-			o.cancel(ctx1.Err())
-		case <-ctx2.Done():
-			o.cancel(ctx2.Err())
-		}
-	}()
+	select {
+	case <-o.cancelCtx.Done():
+		o.cancel(ErrCanceled)
+	case <-ctx1.Done():
+		o.cancel(o.ctx.Err())
+	case <-ctx2.Done():
+		o.cancel(o.ctxs[0].Err())
+	}
 }
 
-func (o *OneContext) runMultipleContexts(ctx context.Context, once *sync.Once) {
-	go func() {
-		select {
-		case <-o.cancelCtx.Done():
-			once.Do(func() {
-				o.cancel(ErrCanceled)
-			})
-		case <-ctx.Done():
-			once.Do(func() {
-				o.cancel(ctx.Err())
-			})
-		}
-	}()
+func (o *OneContext) runMultipleContexts() {
+	cases := make([]reflect.SelectCase, len(o.ctxs)+2)
+	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(o.cancelCtx.Done())}
+	cases[1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(o.ctx.Done())}
+	for i, ctx := range o.ctxs {
+		cases[i+2] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())}
+	}
+
+	chosen, _, _ := reflect.Select(cases)
+	switch chosen {
+	case 0:
+		o.cancel(ErrCanceled)
+	case 1:
+		o.cancel(o.ctx.Err())
+	default:
+		o.cancel(o.ctxs[chosen-2].Err())
+	}
 }
 
 func (o *OneContext) cancel(err error) {

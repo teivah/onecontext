@@ -133,11 +133,42 @@ func Test_Cancel_Two(t *testing.T) {
 	cancel()
 	assert.True(t, eventually(ctx.Done()))
 	assert.Error(t, ctx.Err())
-	assert.Equal(t, "canceled context", ctx.Err().Error())
 	assert.Equal(t, ErrCanceled, ctx.Err())
 }
 
-func Test_Cancel_Multiple(t *testing.T) {
+func Test_Cancel_Multiple_FirstContext(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctx1, cancelCtx1 := context.WithCancel(context.Background())
+	ctx2 := context.Background()
+	ctx3 := context.Background()
+
+	ctx, cancelCtx := Merge(ctx1, ctx2, ctx3)
+	defer cancelCtx()
+
+	cancelCtx1()
+	assert.True(t, eventually(ctx.Done()))
+	assert.Error(t, ctx.Err())
+	assert.Equal(t, ctx1.Err(), ctx.Err())
+}
+
+func Test_Cancel_Multiple_SecondContext(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctx1 := context.Background()
+	ctx2, cancelCtx2 := context.WithCancel(context.Background())
+	ctx3 := context.Background()
+
+	ctx, cancelCtx := Merge(ctx1, ctx2, ctx3)
+	defer cancelCtx()
+
+	cancelCtx2()
+	assert.True(t, eventually(ctx.Done()))
+	assert.Error(t, ctx.Err())
+	assert.Equal(t, ctx2.Err(), ctx.Err())
+}
+
+func Test_Cancel_Multiple_Cancel(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	ctx1 := context.Background()
@@ -149,6 +180,5 @@ func Test_Cancel_Multiple(t *testing.T) {
 	cancel()
 	assert.True(t, eventually(ctx.Done()))
 	assert.Error(t, ctx.Err())
-	assert.Equal(t, "canceled context", ctx.Err().Error())
 	assert.Equal(t, ErrCanceled, ctx.Err())
 }
