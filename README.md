@@ -36,6 +36,6 @@ ctx, cancel := onecontext.Merge(ctx1, ctx2)
 
 This returns a merged context that we can now propagate.
 
-# Installation
+## Installation
 
 `go get github.com/teivah/onecontext`
