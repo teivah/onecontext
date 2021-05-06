@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 type key int
@@ -29,6 +30,8 @@ func eventually(ch <-chan struct{}) bool {
 }
 
 func Test_Merge_Nominal(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1, cancel1 := context.WithCancel(context.WithValue(context.Background(), foo, "foo"))
 	defer cancel1()
 	ctx2, cancel2 := context.WithCancel(context.WithValue(context.Background(), bar, "bar"))
@@ -52,6 +55,8 @@ func Test_Merge_Nominal(t *testing.T) {
 }
 
 func Test_Merge_Deadline_Context1(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel1()
 	ctx2 := context.Background()
@@ -64,6 +69,8 @@ func Test_Merge_Deadline_Context1(t *testing.T) {
 }
 
 func Test_Merge_Deadline_Context2(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1 := context.Background()
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	defer cancel2()
@@ -76,6 +83,8 @@ func Test_Merge_Deadline_Context2(t *testing.T) {
 }
 
 func Test_Merge_Deadline_ContextN(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1 := context.Background()
 	ctxs := make([]context.Context, 0)
 	for i := 0; i < 10; i++ {
@@ -100,10 +109,13 @@ func Test_Merge_Deadline_ContextN(t *testing.T) {
 }
 
 func Test_Merge_Deadline_None(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1 := context.Background()
 	ctx2 := context.Background()
 
-	ctx, _ := Merge(ctx1, ctx2)
+	ctx, cancel := Merge(ctx1, ctx2)
+	defer cancel()
 
 	deadline, ok := ctx.Deadline()
 	assert.True(t, deadline.IsZero())
@@ -111,6 +123,8 @@ func Test_Merge_Deadline_None(t *testing.T) {
 }
 
 func Test_Cancel_Two(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1 := context.Background()
 	ctx2 := context.Background()
 
@@ -120,10 +134,12 @@ func Test_Cancel_Two(t *testing.T) {
 	assert.True(t, eventually(ctx.Done()))
 	assert.Error(t, ctx.Err())
 	assert.Equal(t, "canceled context", ctx.Err().Error())
-	assert.IsType(t, &Canceled{}, ctx.Err())
+	assert.Equal(t, ErrCanceled, ctx.Err())
 }
 
 func Test_Cancel_Multiple(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	ctx1 := context.Background()
 	ctx2 := context.Background()
 	ctx3 := context.Background()
@@ -134,5 +150,5 @@ func Test_Cancel_Multiple(t *testing.T) {
 	assert.True(t, eventually(ctx.Done()))
 	assert.Error(t, ctx.Err())
 	assert.Equal(t, "canceled context", ctx.Err().Error())
-	assert.IsType(t, &Canceled{}, ctx.Err())
+	assert.Equal(t, ErrCanceled, ctx.Err())
 }

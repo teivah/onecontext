@@ -3,24 +3,21 @@ package onecontext
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
 
-// Canceled is the error returned when the CancelFunc returned by Merge is called
-type Canceled struct {
-}
+// ErrCanceled is the returned when the CancelFunc returned by Merge is called.
+var ErrCanceled = errors.New("canceled context")
 
-func (c *Canceled) Error() string {
-	return "canceled context"
-}
-
-type onecontext struct {
+// OneContext is the struct holding the context grouping logic.
+type OneContext struct {
 	ctx        context.Context
 	ctxs       []context.Context
 	done       chan struct{}
 	err        error
-	errMutex   sync.Mutex
+	errMutex   sync.RWMutex
 	cancelFunc context.CancelFunc
 	cancelCtx  context.Context
 }
@@ -29,7 +26,7 @@ type onecontext struct {
 // It returns the merged context and a CancelFunc to cancel it.
 func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, context.CancelFunc) {
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
-	o := &onecontext{
+	o := &OneContext{
 		done:       make(chan struct{}),
 		ctx:        ctx,
 		ctxs:       ctxs,
@@ -40,7 +37,8 @@ func Merge(ctx context.Context, ctxs ...context.Context) (context.Context, conte
 	return o, cancelFunc
 }
 
-func (o *onecontext) Deadline() (time.Time, bool) {
+// Deadline returns the minimum deadline among all the contexts.
+func (o *OneContext) Deadline() (time.Time, bool) {
 	min := time.Time{}
 
 	if deadline, ok := o.ctx.Deadline(); ok {
@@ -54,21 +52,23 @@ func (o *onecontext) Deadline() (time.Time, bool) {
 			}
 		}
 	}
-
 	return min, !min.IsZero()
 }
 
-func (o *onecontext) Done() <-chan struct{} {
+// Done returns a channel for cancellation.
+func (o *OneContext) Done() <-chan struct{} {
 	return o.done
 }
 
-func (o *onecontext) Err() error {
-	o.errMutex.Lock()
-	defer o.errMutex.Unlock()
+// Err returns the first error raised by the contexts, otherwise a nil error.
+func (o *OneContext) Err() error {
+	o.errMutex.RLock()
+	defer o.errMutex.RUnlock()
 	return o.err
 }
 
-func (o *onecontext) Value(key interface{}) interface{} {
+// Value returns the value associated with the key from one of the contexts.
+func (o *OneContext) Value(key interface{}) interface{} {
 	if value := o.ctx.Value(key); value != nil {
 		return value
 	}
@@ -82,33 +82,24 @@ func (o *onecontext) Value(key interface{}) interface{} {
 	return nil
 }
 
-func (o *onecontext) run() {
-	once := sync.Once{}
-
+func (o *OneContext) run() {
 	if len(o.ctxs) == 1 {
 		o.runTwoContexts(o.ctx, o.ctxs[0])
 		return
 	}
 
+	once := sync.Once{}
 	o.runMultipleContexts(o.ctx, &once)
 	for _, ctx := range o.ctxs {
 		o.runMultipleContexts(ctx, &once)
 	}
 }
 
-func (o *onecontext) cancel(err error) {
-	o.cancelFunc()
-	o.errMutex.Lock()
-	o.err = err
-	o.errMutex.Unlock()
-	close(o.done)
-}
-
-func (o *onecontext) runTwoContexts(ctx1, ctx2 context.Context) {
+func (o *OneContext) runTwoContexts(ctx1, ctx2 context.Context) {
 	go func() {
 		select {
 		case <-o.cancelCtx.Done():
-			o.cancel(&Canceled{})
+			o.cancel(ErrCanceled)
 		case <-ctx1.Done():
 			o.cancel(ctx1.Err())
 		case <-ctx2.Done():
@@ -117,12 +108,12 @@ func (o *onecontext) runTwoContexts(ctx1, ctx2 context.Context) {
 	}()
 }
 
-func (o *onecontext) runMultipleContexts(ctx context.Context, once *sync.Once) {
+func (o *OneContext) runMultipleContexts(ctx context.Context, once *sync.Once) {
 	go func() {
 		select {
 		case <-o.cancelCtx.Done():
 			once.Do(func() {
-				o.cancel(&Canceled{})
+				o.cancel(ErrCanceled)
 			})
 		case <-ctx.Done():
 			once.Do(func() {
@@ -130,4 +121,12 @@ func (o *onecontext) runMultipleContexts(ctx context.Context, once *sync.Once) {
 			})
 		}
 	}()
+}
+
+func (o *OneContext) cancel(err error) {
+	o.errMutex.Lock()
+	o.err = err
+	o.errMutex.Unlock()
+	close(o.done)
+	o.cancelFunc()
 }
