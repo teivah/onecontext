@@ -2,6 +2,8 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/teivah/onecontext)](https://goreportcard.com/report/github.com/teivah/onecontext)
 
+`teivah/onecontext` is a set of context utilities.
+
 ## One Context
 
 Have you ever faced the situation where you have to merge multiple existing contexts?
