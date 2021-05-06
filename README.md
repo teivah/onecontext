@@ -40,4 +40,8 @@ It returns a merged context that we can now propagate.
 
 ## Detach
 
-The `onecontext.Detach` function returns a context detached from the original cancellation signal. It can be helpful, for example, if we implement an HTTP handler and that we have to pass a context to another goroutine that may expire after we send back a response.
+`onecontext.Detach` returns a context detached from the original cancellation signal. It can be helpful, for example, if we implement an HTTP handler and that we have to pass a context to another goroutine that may expire after we send back a response.
+
+## Reset Values
+
+`onecontext.ResetValues` reset the values of an existing context.
